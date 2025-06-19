@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Your Portfolio</title>
+  <title>Your Projects</title>
   <style>
     html, body {
       margin: 0;
@@ -16,8 +16,10 @@
 
     body {
       display: flex;
-      justify-content: center;
+      flex-direction: column;
       align-items: center;
+      justify-content: flex-start;
+      padding-top: 60px;
     }
 
     .rain-wrapper {
@@ -26,8 +28,8 @@
       width: 100%;
       height: 100%;
       z-index: 0;
+      filter: blur(1.5px);
       overflow: hidden;
-      filter: blur(1.5px); /* Rain blur */
     }
 
     .rain-container {
@@ -43,128 +45,97 @@
       position: absolute;
       width: 2px;
       height: 20px;
-      background: linear-gradient(to bottom, #00ccff88, #0099ff50);
+      background: linear-gradient(to bottom, #00ccff, #0099ff);
       border-radius: 1px;
       will-change: transform;
     }
 
-    .content {
+    .page-content {
       position: relative;
       z-index: 1;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 2rem 3rem;
+      max-width: 1000px;
+      padding: 2rem;
+      background: rgba(0, 0, 0, 0.6);
       border-radius: 12px;
-      box-shadow: 0 0 20px rgba(0, 204, 255, 0.2);
-      text-align: center;
-      max-width: 600px;
       backdrop-filter: blur(6px);
+      box-shadow: 0 0 20px rgba(0, 204, 255, 0.2);
     }
 
-    .content header {
-      margin-bottom: 1rem;
+    h1 {
+      text-align: center;
+      margin-bottom: 2rem;
     }
 
-    .content .tagline {
-      font-size: 1.1rem;
-      color: #cccccc;
-      margin-top: 0.5rem;
+    .projects-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
     }
 
-    .nav-links {
-      margin: 1.5rem 0;
+    .project-card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 1rem;
+      box-shadow: 0 0 12px rgba(0, 204, 255, 0.1);
+      transition: transform 0.2s ease;
     }
 
-    .nav-links a {
-      display: inline-block;
-      margin: 0 12px;
+    .project-card:hover {
+      transform: translateY(-5px);
+    }
+
+    .project-title {
+      font-size: 1.2rem;
+      margin-bottom: 0.5rem;
       color: #00ccff;
-      text-decoration: none;
-      font-weight: 500;
-      font-size: 1rem;
     }
 
-    .nav-links a:hover {
-      text-decoration: underline;
-    }
-
-    .intro {
-      font-size: 1rem;
-      line-height: 1.6;
-      margin-bottom: 1.5rem;
-    }
-
-    .social {
-      margin-top: 1rem;
+    .project-desc {
       font-size: 0.95rem;
-      color: #aaa;
+      line-height: 1.4;
+      color: #ccc;
     }
 
-    .social a {
+    .project-link {
+      margin-top: 0.75rem;
+      display: inline-block;
       color: #00ccff;
       text-decoration: none;
-      margin: 0 6px;
+      font-weight: bold;
     }
 
-    .social a:hover {
+    .project-link-unavailable {
+      color: #888;
+      cursor: not-allowed;
+    }
+
+    .project-link:hover {
       text-decoration: underline;
     }
   </style>
 </head>
 <body>
-  <script>
-    const audio = new Audio('royaltyfree-rain.mp3');
-    audio.volume = 0;
-    audio.preload = 'auto';
-    audio.loop = true;
-    document.addEventListener('click', function() {
-      if (audio.playing){ return; }
-      audio.play();
-      audio.playing = true;
-
-      let volume = 0;
-      const fadeInInterval = setInterval(() => {
-        if (volume < 0.015) {
-          volume += 0.001;
-          audio.volume = Math.min(volume, 0.015);
-        } else {
-          clearInterval(fadeInInterval);
-        }
-      }, 100);
-    });
-  </script>
-
-  <!-- Rain Background -->
   <div class="rain-wrapper">
     <div class="rain-container" id="rain"></div>
   </div>
 
-  <!-- Portfolio Content -->
-  <div class="content">
-    <header>
-      <h1>GuglioIsStupid</h1>
-      <p class="tagline">Dumb Stupid Idot</p>
-    </header>
+  <div class="page-content">
+    <h1>Projects</h1>
+    <div class="projects-grid">
+        <div class="project-card">
+            <div class="project-title">Rit</div>
+            <div class="project-desc">A story driven rhythm game made in Love2D</div>
+            <a href="#" class="project-link-unavailable">View Project (Coming Soon) →</a>
+        </div>
 
-    <nav class="nav-links">
-      <a href="projects.html">Projects</a>
-    </nav>
+        <div class="project-card">
+            <div class="project-title">uhhhhhh idk</div>
+            <div class="project-desc">dfhgs gnbcdfvh bcdfjnvxgr (pretend i put something awesome here)</div>
+            <a href="#" class="project-link-unavailable">:33333 →</a>
+        </div>
+    </div>
 
-    <section class="intro">
-      <p>
-        Hey, hi, hello! I'm Guglio. I'm a programmer who is currently studying computer science. I enjoy creating little games for people to play and have fun with.
-        <br><br>
-        I also have an interesting in console modding, I love to make dumb little apps no one will end up using
-        <br><br>
-        In my free time, I enjoy making UTAU song covers to improve my tuning skills.
-      </p>
-    </section>
-
-    <section class="social">
-      <a href="https://github.com/" target="_blank">GitHub</a> |
-      <a href="https://twitter.com/GuglioIsStupid" target="_blank">Twitter</a> |
-      <a href="https://bsky.app/profile/guglioisstup.id" target="_blank">Bluesky</a> |
-      <a href="https://www.youtube.com/@GuglioIsStupid" target="_blank">YouTube</a>
-    </section>
+    <a href="index.html" class="project-link">← Back to Portfolio</a>
   </div>
 
   <script>
@@ -226,5 +197,6 @@
 
     animate();
   </script>
+
 </body>
 </html>
