@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blending In With The Homies</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #000; }
+    #wrap { display:flex; align-items:center; justify-content:center; height:100%; }
+    canvas { background:#000; image-rendering: pixelated; }
+    @font-face { font-family: 'FATASSFI'; src: url('fonts/FATASSFI.TTF') format('truetype'); font-display: swap; }
+    @font-face { font-family: 'FATASSOU'; src: url('fonts/FATASSOU.TTF') format('truetype'); font-display: swap; }
+    @font-face { font-family: 'SEGOEPRB'; src: url('fonts/SEGOEPRB.TTF') format('truetype'); font-display: swap; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="game" width="1280" height="720"></canvas>
+  </div>
+
+  <script>
+
+const rndInt = (min, max) => (min + Math.floor(Math.random() * (max - min + 1)));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp  = (a, b, t) => a + (b - a) * t;
+
+class TweenManager {
+  constructor(){ this.tweens = new Set(); }
+  tween(duration, target, toMap, easing = 'linear', onDone){
+    const from = {}; const to = {}; const keys = Object.keys(toMap);
+    keys.forEach(k => { from[k] = target[k]; to[k] = toMap[k]; });
+    const ease = TweenManager.EASING[easing] || TweenManager.EASING.linear;
+    const tw = { t:0, d:Math.max(0.0001, duration), target, from, to, keys, ease, onDone, canceled:false };
+    this.tweens.add(tw); return tw;
+  }
+  cancel(tw){ if(tw) tw.canceled = true; }
+  after(delay, fn){
+    return this.tween(delay, { __dummy:0 }, { __dummy:1 }, 'linear', fn);
+  }
+  update(dt){
+    for(const tw of Array.from(this.tweens)){
+      if(tw.canceled){ this.tweens.delete(tw); continue; }
+      tw.t += dt;
+      const p = clamp(tw.t / tw.d, 0, 1);
+      const e = tw.ease(p);
+      for(const k of tw.keys){ tw.target[k] = lerp(tw.from[k], tw.to[k], e); }
+      if(p >= 1){
+        this.tweens.delete(tw);
+        if(typeof tw.onDone === 'function') tw.onDone();
+      }
+    }
+  }
+}
+TweenManager.EASING = {
+  linear: t => t,
+  'out-quad': t => 1 - (1 - t) * (1 - t)
+};
+const Timer = new TweenManager();
+
+class Input {
+  constructor(){
+    this.curr = new Set();
+    this.prev = new Set();
+    window.addEventListener('keydown', e => { this.curr.add(e.key.toLowerCase()); });
+    window.addEventListener('keyup',   e => { this.curr.delete(e.key.toLowerCase()); });
+  }
+  update(){ this.prev = new Set(this.curr); }
+  pressed(key){ key = key.toLowerCase(); return this.curr.has(key) && !this._prevHas(key); }
+  _prevHas(key){ return this.prev.has(key); }
+}
+const input = new Input();
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let dpr = window.devicePixelRatio || 1;
+function resize(){
+  const w = 1280, h = 720;
+  const ww = window.innerWidth, wh = window.innerHeight;
+  const scale = Math.min(ww / w, wh / h);
+  canvas.style.width  = (w * scale) + 'px';
+  canvas.style.height = (h * scale) + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
+
+function loadImage(src){ return new Promise(res => { const i = new Image(); i.src = src; i.onload = () => res(i); i.onerror = () => res(null); }); }
+function loadAudio(src, volume=1){ const a = new Audio(src); a.preload = 'auto'; a.volume = volume; return a; }
+
+const assets = {
+  homie: 'images/homie.png',
+  homer: 'images/homer.png',
+  peter: 'images/peter.png',
+  frank: 'images/frank.png',
+  chicken: 'images/chicken.png',
+  testGraphic: 'images/blendingIn.png',
+  background: 'images/bg.png',
+  healthIcon: 'images/hp.png',
+  comboShatter: 'images/particles/comboShatter.png',
+  peterBonus: 'images/peterBonus.png',
+  sounds: {
+    homerLaugh: 'sounds/homerLaugh.mp3',
+    lucky: 'sounds/lucky.mp3'
+  }
+};
+
+const img = {};
+const snd = {};
+
+async function preload(){
+  const entries = Object.entries(assets).filter(([k]) => k !== 'sounds');
+  for (const [k, src] of entries){ img[k] = await loadImage(src); }
+  snd.homerLaugh = loadAudio(assets.sounds.homerLaugh, 1);
+  snd.lucky = loadAudio(assets.sounds.lucky, 1);
+  snd.lucky.volume = 0.3;
+}
+
+let gameoverScreen = false;
+let title = true;
+let highScore = Number(localStorage.getItem('hh_highScore') || 0);
+let diedBy = 'error- diedBy was never set';
+
+let peterBonusPos = [-1000, 1];
+let timeRemaining = 15;
+let timerTime = timeRemaining * 1000;
+let score = 0;
+let combo = 0;
+let highestCombo = 0;
+let comboTilt = 0;
+let shakeIntensity = 0;
+let totalHits = 0;
+let totalClicks = 0;
+let enemy = false;
+let PETERFUCKINGGRIFFIN = false;
+let curHomer = 1, curEnemy = 1;
+let comboSizeOffset = 0.8;
+let previousPerfTime = performance.now();
+
+const comboDisplayValues = [1, 1, 50, 100,
+  'rgba(0,0,0,1)', 'rgba(255,165,0,1)', 'rgba(0,0,0,0.5)', 'rgba(255,165,0,0.5)'];
+let comboColor = comboDisplayValues[4];
+let comboColorTransparent = comboDisplayValues[6];
+let scoreDisplay = [0];
+
+const homiePositionsTable = [
+  [180,163], [392,165], [650,150], [954,118]
+];
+
+const particles = [];
+function spawnComboShatter(x, y){
+  for(let i=0;i<40;i++){
+    const a = Math.random()*Math.PI*2;
+    const s = 200 + Math.random()*800;
+    particles.push({x,y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:1});
+  }
+}
+function updateParticles(dt){
+  for(const p of particles){
+    p.vx *= 0.98; p.vy *= 0.98;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.life -= dt; 
+  }
+  for(let i=particles.length-1;i>=0;i--) if(particles[i].life<=0) particles.splice(i,1);
+}
+function drawParticles(){
+  ctx.save();
+  ctx.globalAlpha = 1;
+  for(const p of particles){
+    const a = clamp(p.life, 0, 1);
+    ctx.globalAlpha = a;
+    if(img.comboShatter) ctx.drawImage(img.comboShatter, p.x, p.y);
+  }
+  ctx.restore();
+}
+
+function initGame(){
+  peterBonusPos[0] = -1000; peterBonusPos[1] = 1;
+  timeRemaining = 15; timerTime = timeRemaining * 1000;
+  score = 0; combo = 0; highestCombo = 0; comboSizeOffset = 0.8; shakeIntensity = 0; comboTilt = 0;
+  totalHits = 0; totalClicks = 0; diedBy = 'error- diedBy was never set';
+  comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6];
+  scoreDisplay[0] = 0; particles.length = 0;
+  curHomer = rndInt(1,4); curEnemy = 1; enemy = false;
+  gameoverScreen = false; title = false;
+}
+
+function doGameOver(){
+  if(score > highScore){ highScore = Math.floor(score); localStorage.setItem('hh_highScore', String(highScore)); }
+  gameoverScreen = true;
+}
+
+function doPeterBonusAlert(){
+  try {
+    if(snd.lucky){ snd.lucky.currentTime = 0; snd.lucky.play().catch(()=>{}); }
+  } catch{}
+  if(window._luckyTween) Timer.cancel(window._luckyTween);
+  window._luckyTween = Timer.tween(1, peterBonusPos, { 0: 100 }, 'out-quad', () => {
+    Timer.after(0.5, () => {
+      Timer.tween(0.2, peterBonusPos, { 1: 0 }, 'linear', () => { peterBonusPos[0] = -1000; peterBonusPos[1] = 1; });
+    });
+  });
+}
+
+function incrementCombo(){
+  combo += 1; comboSizeOffset += 0.01; shakeIntensity += 0.15; comboTilt = -0.1; totalHits += 1;
+  if(combo >= highestCombo) highestCombo = combo;
+  comboDisplayValues[0] = 1.35; comboDisplayValues[1] = 1.1;
+  Timer.tween(0.35, comboDisplayValues, { 0: 1 }, 'out-quad');
+  Timer.tween(0.2,  comboDisplayValues, { 1: 1 }, 'out-quad');
+  comboDisplayValues[2] = 50; comboDisplayValues[3] = 100;
+  score += 10 * (combo/4);
+  if(PETERFUCKINGGRIFFIN){ score *= 3; doPeterBonusAlert(); } else { 
+    if (snd.homerLaugh) {
+        snd.homerLaugh.currentTime = 0;
+        snd.homerLaugh.volume = 0.25;
+        snd.homerLaugh.play().catch(()=>{});
+    }
+  }
+  let sizeModifier = 0;
+  if(combo >= 35){ sizeModifier = 0.5; comboColor = comboDisplayValues[5]; comboColorTransparent = comboDisplayValues[7]; }
+  else if(combo >= 25){ sizeModifier = 0.3; comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6]; }
+  else if(combo >= 15){ sizeModifier = 0.1; comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6]; }
+  doScoreDisplay();
+}
+
+let scoreDisplayTween = null;
+function doScoreDisplay(){
+  if(scoreDisplayTween) Timer.cancel(scoreDisplayTween);
+  scoreDisplayTween = Timer.tween(1, scoreDisplay, { 0: score }, 'out-quad');
+}
+
+function checkInput(which){
+  totalClicks += 1;
+  if(which === curHomer){
+    incrementCombo();
+    pickNewHomerPos(curHomer);
+  } else if(which === curEnemy && !PETERFUCKINGGRIFFIN){
+    doGameOver(); diedBy = 'Frank Grimes';
+  } else {
+    combo = 0; comboSizeOffset = 0.8; shakeIntensity = 0; score -= (score * 4) / 10; doScoreDisplay();
+    comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6];
+    comboDisplayValues[2] = 50; comboDisplayValues[3] = 100; pickNewHomerPos(curHomer);
+    health -= 1;
+    if(health <= 0) doGameOver(); diedBy = 'health';
+  }
+}
+
+function pickNewHomerPos(curHomerPos){
+  const peterPercent = rndInt(1,10);
+  const enemyPercent = rndInt(1,3);
+  PETERFUCKINGGRIFFIN = (peterPercent === 1);
+  if(enemyPercent === 1){ enemy = !PETERFUCKINGGRIFFIN; } else { enemy = false; }
+  curHomer = rndInt(1,4);
+  while(curEnemy === curHomer){ curEnemy = rndInt(1,4); }
+  if(curHomer === curHomerPos){ pickNewHomerPos(curHomerPos); }
+}
+
+function checkHit(x, y){
+  if(enemy){
+    const ex = homiePositionsTable[curEnemy-1][0];
+    const ey = homiePositionsTable[curEnemy-1][1];
+    const w = img.homer ? img.homer.width : 64;
+    const h = img.homer ? img.homer.height : 64;
+    if(x>ex && x<ex+w && y>ey && y<ey+h){
+      doGameOver(); diedBy = PETERFUCKINGGRIFFIN ? 'Ernie the Giant Chicken' : 'Frank Grimes';
+      return false;
+    }
+  }
+  const hx = homiePositionsTable[curHomer-1][0];
+  const hy = homiePositionsTable[curHomer-1][1];
+  const w = img.homer ? img.homer.width : 64;
+  const h = img.homer ? img.homer.height : 64;
+  if(x>hx && x<hx+w && y>hy && y<hy+h){ return true; }
+  return false;
+}
+
+canvas.addEventListener('mousedown', ev => {
+  if(title || gameoverScreen){ initGame(); return; }
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width  / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (ev.clientX - rect.left) * scaleX;
+  const y = (ev.clientY - rect.top)  * scaleY;
+  totalClicks += 1;
+  if(checkHit(x,y)) { incrementCombo(); pickNewHomerPos(curHomer); }
+  else { 
+        combo = 0; comboSizeOffset = 0.8; 
+        shakeIntensity = 0; 
+        score -= (score * 4)/10; doScoreDisplay(); 
+        comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6]; 
+        comboDisplayValues[2]=50; comboDisplayValues[3]=100; 
+        pickNewHomerPos(curHomer); 
+        health -= 1;
+        if(health <= 0) doGameOver(); diedBy = 'health';
+    }
+});
+
+canvas.addEventListener('touchstart', ev => {
+  const t = ev.changedTouches[0];
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width  / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (t.clientX - rect.left) * scaleX;
+  const y = (t.clientY - rect.top)  * scaleY;
+  if(title || gameoverScreen){ initGame(); return; }
+  totalClicks += 1;
+  if(checkHit(x,y)) { incrementCombo(); pickNewHomerPos(curHomer); }
+  else { 
+    combo = 0; comboSizeOffset = 0.8;
+    shakeIntensity = 0; 
+    score -= (score * 4)/10; doScoreDisplay(); 
+    comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6]; 
+    comboDisplayValues[2]=50; comboDisplayValues[3]=100; 
+    pickNewHomerPos(curHomer); 
+    health -= 1;
+    if(health <= 0) doGameOver(); diedBy = 'health';
+  }
+});
+
+window.addEventListener('keydown', (e) => {
+  if((title || gameoverScreen) && e.key.toLowerCase()===' '){ initGame(); }
+});
+
+function update(dt){
+  Timer.update(dt);
+  updateParticles(dt);
+
+  if(!title && !gameoverScreen){
+    timerTime -= dt * 1000;
+    comboDisplayValues[2] = rndInt(comboDisplayValues[2]-shakeIntensity, comboDisplayValues[2]+shakeIntensity);
+    comboDisplayValues[3] = rndInt(comboDisplayValues[3]-shakeIntensity, comboDisplayValues[3]+shakeIntensity);
+
+    if(keysDownOnce['k']) checkInput(4);
+    if(keysDownOnce['j']) checkInput(3);
+    if(keysDownOnce['f']) checkInput(2);
+    if(keysDownOnce['d']) checkInput(1);
+
+    if(timerTime <= 0){ diedBy = 'Timer'; doGameOver(); }
+  }
+}
+
+function draw(){
+  ctx.save();
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(img.background) ctx.drawImage(img.background, 0, 0);
+
+  if(!title && !gameoverScreen){
+    for(let i=1;i<=4;i++){
+      const pos = homiePositionsTable[i-1];
+      if(!enemy){ if(i !== curHomer){ if(img.homie) ctx.drawImage(img.homie, pos[0], pos[1]); } }
+      else { if(i !== curHomer && i !== curEnemy){ if(img.homie) ctx.drawImage(img.homie, pos[0], pos[1]); } }
+    }
+
+    for(let i=1;i<=health;i++){
+      const x = (i===1)? canvas.width-75 : (i===2? canvas.width-50 : canvas.width-25);
+      if(img.healthIcon) ctx.drawImage(img.healthIcon, x, 50);
+    }
+
+    if(!PETERFUCKINGGRIFFIN){
+      if(img.homer) ctx.drawImage(img.homer, homiePositionsTable[curHomer-1][0], homiePositionsTable[curHomer-1][1]);
+      if(enemy && img.frank) ctx.drawImage(img.frank, homiePositionsTable[curEnemy-1][0], homiePositionsTable[curEnemy-1][1]);
+    } else {
+      if(img.chicken) ctx.drawImage(img.chicken, homiePositionsTable[curEnemy-1][0], homiePositionsTable[curEnemy-1][1]);
+      if(img.peter)   ctx.drawImage(img.peter,   homiePositionsTable[curHomer-1][0], homiePositionsTable[curHomer-1][1]);
+    }
+
+    if(combo >= 5){
+      ctx.save();
+      ctx.translate(0,0);
+      ctx.rotate(comboTilt);
+      ctx.scale(comboSizeOffset, comboSizeOffset);
+
+      ctx.font = `100px FATASSOU, sans-serif`;
+      ctx.fillStyle = comboColor;
+      ctx.fillText(String(combo), comboDisplayValues[2], comboDisplayValues[3]);
+
+      ctx.font = `100px FATASSFI, sans-serif`;
+      ctx.fillStyle = comboColorTransparent;
+      const lineScale = comboDisplayValues[1];
+      const fillScale = comboDisplayValues[0];
+      ctx.save();
+      ctx.translate(comboDisplayValues[2], comboDisplayValues[3]);
+      ctx.scale(fillScale, fillScale);
+      ctx.fillText(String(combo), 0, 0);
+      ctx.restore();
+
+      ctx.restore();
+    }
+
+    ctx.globalAlpha = peterBonusPos[1];
+    if(img.peterBonus) ctx.drawImage(img.peterBonus, peterBonusPos[0], 100);
+    ctx.globalAlpha = 1;
+
+    drawParticles();
+
+    ctx.fillStyle = '#000';
+    ctx.font = '50px FATASSOU, sans-serif';
+    ctx.fillText(`Score: ${Math.floor(scoreDisplay[0])}`, 10, 120);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${Math.floor(timerTime/1000)}`, canvas.width-10, 120);
+    ctx.textAlign = 'left';
+  }
+
+  if(gameoverScreen){
+    ctx.fillStyle = 'rgba(255,0,0,0.5)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = '80px FATASSOU, sans-serif';
+    const msg = (score < 8075791209) ? 'lmao you suck' : 'balls';
+    drawCentered(msg, 140);
+
+    ctx.font = '40px SEGOEPRB, sans-serif';
+    drawCentered(`High Score- ${highScore}`, 250);
+    drawCentered(`Your Score- ${Math.floor(score)}`, 300);
+    drawCentered(`Highest Combo- ${highestCombo}`, 350);
+    const acc = totalClicks>0 ? Math.floor((totalHits/totalClicks)*100) : 0;
+    drawCentered(`Accuracy- ${acc}%`, 400);
+    drawCentered(`Died By- ${diedBy}`, 450);
+
+    ctx.save();
+    ctx.translate(canvas.width/2 - 110, 500);
+    ctx.scale(1.2,1.2);
+    drawCentered('Press Space', 0);
+    ctx.restore();
+  }
+
+  if(title){
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = '40px SEGOEPRB, sans-serif';
+    ctx.save();
+    ctx.translate(canvas.width/2 - 780, 500);
+    ctx.scale(1.2,1.2);
+    drawCentered('Press screen or press [SPACE]', 0);
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+function drawCentered(text, y){
+  const metrics = ctx.measureText(text);
+  const x = (canvas.width - metrics.width)/2;
+  ctx.fillText(text, x, y);
+}
+
+let health = 3;
+
+const keyHeld = new Set();
+const keysDownOnce = {};
+window.addEventListener('keydown', e => { keyHeld.add(e.key.toLowerCase()); });
+window.addEventListener('keyup',   e => { keyHeld.delete(e.key.toLowerCase()); });
+function collectKeyEdges(){
+  const desired = ['d','f','j','k'];
+  for(const k of desired){
+    if(keyHeld.has(k)){
+      keysDownOnce[k] = !keysDownOnce[`__held_${k}`];
+      keysDownOnce[`__held_${k}`] = true;
+    } else {
+      keysDownOnce[k] = false;
+      keysDownOnce[`__held_${k}`] = false;
+    }
+  }
+}
+
+function loop(now){
+  const dt = Math.min(0.033, (now - previousPerfTime)/1000);
+  previousPerfTime = now;
+  collectKeyEdges();
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+(async function(){
+  await preload();
+  requestAnimationFrame(loop);
+})();
+  </script>
+</body>
+</html>
