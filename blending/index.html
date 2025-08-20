@@ -295,28 +295,6 @@ canvas.addEventListener('mousedown', ev => {
     }
 });
 
-canvas.addEventListener('touchstart', ev => {
-  const t = ev.changedTouches[0];
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width  / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const x = (t.clientX - rect.left) * scaleX;
-  const y = (t.clientY - rect.top)  * scaleY;
-  if(title || gameoverScreen){ initGame(); return; }
-  totalClicks += 1;
-  if(checkHit(x,y)) { incrementCombo(); pickNewHomerPos(curHomer); }
-  else { 
-    combo = 0; comboSizeOffset = 0.8;
-    shakeIntensity = 0; 
-    score -= (score * 4)/10; doScoreDisplay(); 
-    comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6]; 
-    comboDisplayValues[2]=50; comboDisplayValues[3]=100; 
-    pickNewHomerPos(curHomer); 
-    health -= 1;
-    if(health <= 0) doGameOver(); diedBy = 'health';
-  }
-});
-
 window.addEventListener('keydown', (e) => {
   if((title || gameoverScreen) && e.key.toLowerCase()===' '){ initGame(); }
 });
