@@ -114,6 +114,7 @@ const assets = {
   sounds: {
     homerLaugh: 'sounds/homerLaugh.mp3',
     lucky: 'sounds/lucky.mp3',
+    notsolucky: 'sounds/notsolucky.ogg',
     grrr: 'sounds/GRRR.mp3',
     priceIsRightLose: 'sounds/priceIsRightLose.mp3',
     frankGrimes: 'sounds/frankGrimes.mp3'
@@ -129,12 +130,14 @@ async function preload(){
   for (const [k, src] of entries){ img[k] = await loadImage(src); }
   snd.homerLaugh = loadAudio(assets.sounds.homerLaugh, 1);
   snd.lucky = loadAudio(assets.sounds.lucky, 1);
+  snd.notsolucky = loadAudio(assets.sounds.notsolucky, 1);
   snd.priceIsRightLose = loadAudio(assets.sounds.priceIsRightLose, 1);
   snd.frankGrimes = loadAudio(assets.sounds.frankGrimes, 1);
   snd.grrr = loadAudio(assets.sounds.grrr, 1);
 
   snd.frankGrimes.volume = 0.5
   snd.lucky.volume = 0.3;
+  snd.notsolucky.volume = 0.3;
   snd.grrr.volume = 0.25
 }
 
@@ -315,6 +318,7 @@ function incrementCombo(){
     score *= 3; doPeterBonusAlert(); 
     scoreMultiplier += 0.5;
     peterTimer = 15;
+    Timer.after(15, () => { scoreMultiplier -= 0.5; });
   } else { 
     if (snd.homerLaugh) {
         const clone = new Audio(snd.homerLaugh.src);
@@ -324,9 +328,6 @@ function incrementCombo(){
     }
   }
   let sizeModifier = 0;
-  if(combo >= 35){ sizeModifier = 0.5; comboColor = comboDisplayValues[5]; comboColorTransparent = comboDisplayValues[7]; }
-  else if(combo >= 25){ sizeModifier = 0.3; comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6]; }
-  else if(combo >= 15){ sizeModifier = 0.1; comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6]; }
   doScoreDisplay();
 }
 
@@ -342,18 +343,37 @@ function checkInput(which){
     incrementCombo();
     pickNewHomerPos(curHomer);
   } else if(which === curEnemy){
-    doGameOver(); diedBy = PETERFUCKINGGRIFFIN ? 'Ernie the Giant Chicken' : 'Frank Grimes';
+    /* doGameOver(); diedBy = PETERFUCKINGGRIFFIN ? 'Ernie the Giant Chicken' : 'Frank Grimes';
     if (!PETERFUCKINGGRIFFIN && snd.frankGrimes) {
         snd.frankGrimes.currentTime = 0;
         snd.frankGrimes.play().catch(()=>{});
+    } */
+    if (!PETERFUCKINGGRIFFIN) {
+      // frank grimes kill
+      doGameOver(); diedBy = 'Frank Grimes';
+      if (snd.frankGrimes) {
+          snd.frankGrimes.currentTime = 0;
+          snd.frankGrimes.play().catch(()=>{});
+      }
+    } else {
+      peterTimer = 15;
+      snd.notsolucky.currentTime = 0;
+      snd.notsolucky.play().catch(()=>{});
+      scoreMultiplier -= 0.5;
+      Timer.after(15, () => { scoreMultiplier += 0.5; });
     }
   } else {
     combo = 0; comboSizeOffset = 0.8; shakeIntensity = 0; score -= (score * 4) / 10; doScoreDisplay();
     comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6];
-    comboDisplayValues[2] = 50; comboDisplayValues[3] = 100; pickNewHomerPos(curHomer);
     health -= 1;
-    snd.grrr.currentTime = 0;
-    snd.grrr.play().catch(()=>{});
+    if (!PETERFUCKINGGRIFFIN) {
+      snd.grrr.currentTime = 0;
+      snd.grrr.play().catch(()=>{});
+    } else {
+      snd.notsolucky.currentTime = 0;
+      snd.notsolucky.play().catch(()=>{});
+    }
+    comboDisplayValues[2] = 50; comboDisplayValues[3] = 100; pickNewHomerPos(curHomer);
     if(health <= 0) doGameOver(); diedBy = 'health';
   }
 }
@@ -369,19 +389,26 @@ function pickNewHomerPos(curHomerPos){
 }
 
 function checkHit(x, y){
-  if(enemy){
+  if(enemy && !PETERFUCKINGGRIFFIN){
     const ex = homiePositionsTable[curEnemy-1][0];
     const ey = homiePositionsTable[curEnemy-1][1];
     const w = img.homer ? img.homer.width : 64;
     const h = img.homer ? img.homer.height : 64;
     if(x>ex && x<ex+w && y>ey && y<ey+h){
-      doGameOver(); diedBy = PETERFUCKINGGRIFFIN ? 'Ernie the Giant Chicken' : 'Frank Grimes';
-      if (!PETERFUCKINGGRIFFIN && snd.frankGrimes) {
+      doGameOver(); diedBy = 'Frank Grimes';
+      if (snd.frankGrimes) {
           snd.frankGrimes.currentTime = 0;
           snd.frankGrimes.play().catch(()=>{});
       }
       return false;
     }
+  } else if (PETERFUCKINGGRIFFIN) {
+    // notsolucky
+    peterTimer = 15;
+    snd.notsolucky.currentTime = 0;
+    snd.notsolucky.play().catch(()=>{});
+    scoreMultiplier -= 0.5;
+    Timer.after(15, () => { scoreMultiplier += 0.5; });
   }
   const hx = homiePositionsTable[curHomer-1][0];
   const hy = homiePositionsTable[curHomer-1][1];
@@ -406,11 +433,17 @@ canvas.addEventListener('mousedown', ev => {
         score -= (score * 4)/10; doScoreDisplay(); 
         comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6]; 
         comboDisplayValues[2]=50; comboDisplayValues[3]=100; 
-        pickNewHomerPos(curHomer); 
         health -= 1;
         if(health <= 0) doGameOver(); diedBy = 'health';
-        snd.grrr.currentTime = 0;
-        snd.grrr.play().catch(()=>{});
+
+        if (!PETERFUCKINGGRIFFIN) {
+          snd.grrr.currentTime = 0;
+          snd.grrr.play().catch(()=>{});
+        } else {
+          snd.notsolucky.currentTime = 0;
+          snd.notsolucky.play().catch(()=>{});
+        }
+        pickNewHomerPos(curHomer); 
     }
 });
 
