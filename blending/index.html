@@ -273,8 +273,8 @@ function initGame(){
   scoreDisplay[1] = 0;
   curHomer = rndInt(1,4); curEnemy = 1; enemy = false;
   gameoverScreen = false; title = false;
-  gameTimer = 10
-  health = 3;
+  gameTimer = cheatActivated ? 9999 : 10;
+  health = cheatActivated ? 9999 : 3;
 
   playRandomMusic();
 }
@@ -306,7 +306,7 @@ function doPeterBonusAlert(){
 }
 
 function incrementCombo(){
-  gameTimer = 10;
+  gameTimer = cheatActivated ? 9999 : 10;
   combo += 1; comboSizeOffset += 0.01; shakeIntensity += 0.15; comboTilt = -0.1; totalHits += 1;
   if(combo >= highestCombo) highestCombo = combo;
   comboDisplayValues[0] = 1.35; comboDisplayValues[1] = 1.1;
@@ -443,6 +443,30 @@ canvas.addEventListener('mousedown', ev => {
 window.addEventListener('keydown', (e) => {
   if((title || gameoverScreen) && e.key.toLowerCase()===' '){ initGame(); }
 });
+
+let cheatBuffer = '';
+let cheatActivated = false;
+window.addEventListener('keydown', (e) => {
+  const key = e.key.toLowerCase();
+  if(key.length === 1) { // Only letters/characters
+    cheatBuffer += key;
+    if(cheatBuffer.length > 5) cheatBuffer = cheatBuffer.slice(-5);
+    if(cheatBuffer === 'penis') {
+        if (!cheatActivated) {
+          gameTimer = 9999;
+          health = 9999;
+          cheatActivated = true;
+          console.log('Cheat activated: infinite time & health!');
+        } else {
+          gameTimer = 10;
+          health = 3;
+          cheatActivated = false;
+          console.log('Cheat deactivated: back to normal.');
+        }
+    }
+  }
+});
+
 
 function update(dt){
   Timer.update(dt);
