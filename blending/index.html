@@ -13,8 +13,6 @@
     @font-face { font-family: 'FATASSOU'; src: url('fonts/FATASSOU.TTF') format('truetype'); font-display: swap; }
     @font-face { font-family: 'SEGOEPRB'; src: url('fonts/SEGOEPRB.TTF') format('truetype'); font-display: swap; }
   </style>
-  <script src="https://unpkg.com/tone@next/build/Tone.js"></script>
-
 </head>
 <body>
   <div id="wrap">
@@ -366,13 +364,8 @@ function checkInput(which){
     combo = 0; comboSizeOffset = 0.8; shakeIntensity = 0; score -= (score * 4) / 10; doScoreDisplay();
     comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6];
     health -= 1;
-    if (!PETERFUCKINGGRIFFIN) {
-      snd.grrr.currentTime = 0;
-      snd.grrr.play().catch(()=>{});
-    } else {
-      snd.notsolucky.currentTime = 0;
-      snd.notsolucky.play().catch(()=>{});
-    }
+    snd.grrr.currentTime = 0;
+    snd.grrr.play().catch(()=>{});
     comboDisplayValues[2] = 50; comboDisplayValues[3] = 100; pickNewHomerPos(curHomer);
     if(health <= 0) doGameOver(); diedBy = 'health';
   }
@@ -402,7 +395,7 @@ function checkHit(x, y){
       }
       return false;
     }
-  } else if (PETERFUCKINGGRIFFIN) {
+  } else if (enemy && PETERFUCKINGGRIFFIN) {
     // notsolucky
     peterTimer = 15;
     snd.notsolucky.currentTime = 0;
