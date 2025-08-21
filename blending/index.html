@@ -13,6 +13,8 @@
     @font-face { font-family: 'FATASSOU'; src: url('fonts/FATASSOU.TTF') format('truetype'); font-display: swap; }
     @font-face { font-family: 'SEGOEPRB'; src: url('fonts/SEGOEPRB.TTF') format('truetype'); font-display: swap; }
   </style>
+  <script src="https://unpkg.com/tone@next/build/Tone.js"></script>
+
 </head>
 <body>
   <div id="wrap">
@@ -54,7 +56,18 @@ class TweenManager {
 }
 TweenManager.EASING = {
   linear: t => t,
-  'out-quad': t => 1 - (1 - t) * (1 - t)
+  'out-quad': t => 1 - (1 - t) * (1 - t),
+  'in-out-quad': t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2,
+  'in-expo': t => t === 0 ? 0 : Math.pow(2, 10 * (t - 1)),
+  'out-expo': t => t === 1 ? 1 : 1 - Math.pow(2, -10 * t),
+  'in-back': t => {
+    const s = 1.5;
+    return t * t * ((s + 1) * t - s);
+  },
+  'out-back': t => {
+    const s = 1.5;
+    return (t = t - 1) * t * ((s + 1) * t + s) + 1;
+  }
 };
 const Timer = new TweenManager();
 
@@ -100,8 +113,12 @@ const assets = {
   peterBonus: 'images/peterBonus.png',
   sounds: {
     homerLaugh: 'sounds/homerLaugh.mp3',
-    lucky: 'sounds/lucky.mp3'
-  }
+    lucky: 'sounds/lucky.mp3',
+    grrr: 'sounds/GRRR.mp3',
+    priceIsRightLose: 'sounds/priceIsRightLose.mp3',
+    frankGrimes: 'sounds/frankGrimes.mp3'
+  },
+  tutorial: 'images/tutorialScreen.png'
 };
 
 const img = {};
@@ -112,7 +129,13 @@ async function preload(){
   for (const [k, src] of entries){ img[k] = await loadImage(src); }
   snd.homerLaugh = loadAudio(assets.sounds.homerLaugh, 1);
   snd.lucky = loadAudio(assets.sounds.lucky, 1);
+  snd.priceIsRightLose = loadAudio(assets.sounds.priceIsRightLose, 1);
+  snd.frankGrimes = loadAudio(assets.sounds.frankGrimes, 1);
+  snd.grrr = loadAudio(assets.sounds.grrr, 1);
+
+  snd.frankGrimes.volume = 0.5
   snd.lucky.volume = 0.3;
+  snd.grrr.volume = 0.25
 }
 
 let gameoverScreen = false;
@@ -120,9 +143,7 @@ let title = true;
 let highScore = Number(localStorage.getItem('hh_highScore') || 0);
 let diedBy = 'error- diedBy was never set';
 
-let peterBonusPos = [-1000, 1];
-let timeRemaining = 15;
-let timerTime = timeRemaining * 1000;
+let peterBonusPos = [-1000, 1, -1];
 let score = 0;
 let combo = 0;
 let highestCombo = 0;
@@ -135,6 +156,13 @@ let PETERFUCKINGGRIFFIN = false;
 let curHomer = 1, curEnemy = 1;
 let comboSizeOffset = 0.8;
 let previousPerfTime = performance.now();
+let gameTimerDecrementAmount = 0;
+let TimerDecrementer = 0;
+let gameTimer = 10;
+let peterTimer = 0;
+let peterTimerDecrementer = 0;
+let timerJump = [0, 0]; // gameTimer, peterTimer
+let scoreMultiplier = 1;
 
 const comboDisplayValues = [1, 1, 50, 100,
   'rgba(0,0,0,1)', 'rgba(255,165,0,1)', 'rgba(0,0,0,0.5)', 'rgba(255,165,0,0.5)'];
@@ -173,47 +201,126 @@ function drawParticles(){
   ctx.restore();
 }
 
+function playRandomMusic() {
+  const musicFiles = [
+    "music/Kevin MacLeod - All This.ogg",
+    "music/Kevin MacLeod - Amazing Plan.ogg",
+    "music/Kevin MacLeod - Arcadia.ogg",
+    "music/Kevin MacLeod - Aurea Carmina.ogg",
+    "music/Kevin MacLeod - Barroom Ballet.ogg",
+    "music/Kevin MacLeod - Basement Floor.ogg",
+    "music/Kevin MacLeod - Black Vortex.ogg",
+    "music/Kevin MacLeod - Breaktime.ogg",
+    "music/Kevin MacLeod - Cipher.ogg",
+    "music/Kevin MacLeod - Cut and Run.ogg",
+    "music/Kevin MacLeod - Dance of the Sugar Plum Fairies.ogg",
+    "music/Kevin MacLeod - Darkest Child.ogg",
+    "music/Kevin MacLeod - Exhilarate.ogg",
+    "music/Kevin MacLeod - Fluffing a Duck.ogg",
+    "music/Kevin MacLeod - Frost Waltz.ogg",
+    "music/Kevin MacLeod - Gold Rush.ogg",
+    "music/Kevin MacLeod - Heartbreaking.ogg",
+    "music/Kevin MacLeod - Hidden Agenda.ogg",
+    "music/Kevin MacLeod - Hitman.ogg",
+    "music/Kevin MacLeod - Hyperfun.ogg",
+    "music/Kevin MacLeod - Ice Flow.ogg",
+    "music/Kevin MacLeod - Investigations.ogg",
+    "music/Kevin MacLeod - Jaunty Gumption.ogg",
+    "music/Kevin MacLeod - Jingle Bells.ogg",
+    "music/Kevin MacLeod - Killing Time.ogg",
+    "music/Kevin MacLeod - Kool Kats.ogg",
+    "music/Kevin MacLeod - Local Forecast - Elevator.ogg",
+    "music/Kevin MacLeod - Local Forecast.ogg",
+    "music/Kevin MacLeod - Look Busy.ogg",
+    "music/Kevin MacLeod - Mariachi Snooze.ogg",
+    "music/Kevin MacLeod - Merry Go.ogg",
+    "music/Kevin MacLeod - Mister Exposition.ogg",
+    "music/Kevin MacLeod - Move Forward.ogg",
+    "music/Kevin MacLeod - Movement Proposition.ogg",
+    "music/Kevin MacLeod - MTA.ogg",
+    "music/Kevin MacLeod - Pixel Peeker Polka - faster.ogg",
+    "music/Kevin MacLeod - Quirky Dog.ogg",
+    "music/Kevin MacLeod - Scheming Weasel (faster Version).ogg",
+    "music/Kevin MacLeod - Sneaky Adventure.ogg",
+    "music/Kevin MacLeod - Sneaky.ogg",
+    "music/Kevin MacLeod - Spazzmatica Polka.ogg",
+    "music/Kevin MacLeod - The Builder.ogg",
+    "music/Kevin MacLeod - The Descent.ogg",
+    "music/Kevin MacLeod - The House of Leaves.ogg",
+    "music/Kevin MacLeod - Truth of the Legend.ogg",
+    "music/Kevin MacLeod - Volatile Reaction.ogg",
+    "music/Kevin MacLeod - Wallpaper.ogg",
+    "music/Kevin MacLeod - Who Likes to Party.ogg",
+    "music/Kevin MacLeod Archive - Kevin MacLeod： Meatball Parade.ogg",
+    "music/Kevin MacLeod Archive - Kevin MacLeod： Run Amok.ogg",
+    "music/Kevin MacLeod Archive - Kevin MacLeod： The Cannery.ogg",
+    "music/nocturnes.mp3"
+  ]
+  const randomMusic = musicFiles[Math.floor(Math.random() * musicFiles.length)];
+  snd.music = loadAudio(randomMusic, 1);
+  snd.music.play();
+  snd.music.volume = 0.1;
+}
+
 function initGame(){
-  peterBonusPos[0] = -1000; peterBonusPos[1] = 1;
-  timeRemaining = 15; timerTime = timeRemaining * 1000;
+  peterBonusPos[0] = -1000; peterBonusPos[1] = 1; peterBonusPos[2] = -15;
   score = 0; combo = 0; highestCombo = 0; comboSizeOffset = 0.8; shakeIntensity = 0; comboTilt = 0;
   totalHits = 0; totalClicks = 0; diedBy = 'error- diedBy was never set';
   comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6];
   scoreDisplay[0] = 0; particles.length = 0;
   curHomer = rndInt(1,4); curEnemy = 1; enemy = false;
   gameoverScreen = false; title = false;
+  gameTimer = 10
+  health = 3;
+
+  playRandomMusic();
 }
 
 function doGameOver(){
   if(score > highScore){ highScore = Math.floor(score); localStorage.setItem('hh_highScore', String(highScore)); }
   gameoverScreen = true;
+  snd.priceIsRightLose.currentTime = 0;
+  snd.priceIsRightLose.volume = 0.5
+  snd.priceIsRightLose.play().catch(()=>{});
+  snd.music.pause()
+
 }
 
 function doPeterBonusAlert(){
   try {
     if(snd.lucky){ snd.lucky.currentTime = 0; snd.lucky.play().catch(()=>{}); }
   } catch{}
+  peterBonusPos[0] = -img.peterBonus.width; peterBonusPos[1] = 130; peterBonusPos[2] = -15;
   if(window._luckyTween) Timer.cancel(window._luckyTween);
-  window._luckyTween = Timer.tween(1, peterBonusPos, { 0: 100 }, 'out-quad', () => {
-    Timer.after(0.5, () => {
-      Timer.tween(0.2, peterBonusPos, { 1: 0 }, 'linear', () => { peterBonusPos[0] = -1000; peterBonusPos[1] = 1; });
+  if(window._luckyTweenRotate) Timer.cancel(window._luckyTweenRotate);
+  window._luckyTweenRotate = Timer.tween(1, peterBonusPos, { 2: 15 }, 'out-back');
+  window._luckyTween = Timer.tween(0.8, peterBonusPos, { 0: canvas.width / 2 - img.peterBonus.width+100 }, 'out-quad', () => {
+    Timer.tween(1.3, peterBonusPos, { 2: 0 }, 'out-back');
+    Timer.after(1.65, () => {
+      Timer.tween(0.2, peterBonusPos, { 1: -300, 2: 25 }, 'in-expo');
     });
   });
 }
 
 function incrementCombo(){
+  gameTimer = 10;
   combo += 1; comboSizeOffset += 0.01; shakeIntensity += 0.15; comboTilt = -0.1; totalHits += 1;
   if(combo >= highestCombo) highestCombo = combo;
   comboDisplayValues[0] = 1.35; comboDisplayValues[1] = 1.1;
   Timer.tween(0.35, comboDisplayValues, { 0: 1 }, 'out-quad');
   Timer.tween(0.2,  comboDisplayValues, { 1: 1 }, 'out-quad');
   comboDisplayValues[2] = 50; comboDisplayValues[3] = 100;
-  score += 10 * (combo/4);
-  if(PETERFUCKINGGRIFFIN){ score *= 3; doPeterBonusAlert(); } else { 
+  score += 10 * (combo/4) * scoreMultiplier;
+  if(PETERFUCKINGGRIFFIN){ 
+    score *= 3; doPeterBonusAlert(); 
+    scoreMultiplier += 0.5;
+    peterTimer = 15;
+  } else { 
     if (snd.homerLaugh) {
-        snd.homerLaugh.currentTime = 0;
-        snd.homerLaugh.volume = 0.25;
-        snd.homerLaugh.play().catch(()=>{});
+        const clone = new Audio(snd.homerLaugh.src);
+        clone.volume = 0.25;
+        clone.playbackRate = Math.random() * 3 + 0.5;
+        clone.play().catch(()=>{});
     }
   }
   let sizeModifier = 0;
@@ -234,13 +341,19 @@ function checkInput(which){
   if(which === curHomer){
     incrementCombo();
     pickNewHomerPos(curHomer);
-  } else if(which === curEnemy && !PETERFUCKINGGRIFFIN){
-    doGameOver(); diedBy = 'Frank Grimes';
+  } else if(which === curEnemy){
+    doGameOver(); diedBy = PETERFUCKINGGRIFFIN ? 'Ernie the Giant Chicken' : 'Frank Grimes';
+    if (!PETERFUCKINGGRIFFIN && snd.frankGrimes) {
+        snd.frankGrimes.currentTime = 0;
+        snd.frankGrimes.play().catch(()=>{});
+    }
   } else {
     combo = 0; comboSizeOffset = 0.8; shakeIntensity = 0; score -= (score * 4) / 10; doScoreDisplay();
     comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6];
     comboDisplayValues[2] = 50; comboDisplayValues[3] = 100; pickNewHomerPos(curHomer);
     health -= 1;
+    snd.grrr.currentTime = 0;
+    snd.grrr.play().catch(()=>{});
     if(health <= 0) doGameOver(); diedBy = 'health';
   }
 }
@@ -248,7 +361,7 @@ function checkInput(which){
 function pickNewHomerPos(curHomerPos){
   const peterPercent = rndInt(1,10);
   const enemyPercent = rndInt(1,3);
-  PETERFUCKINGGRIFFIN = (peterPercent === 1);
+  PETERFUCKINGGRIFFIN = (peterPercent === 1) && (peterTimer <= 0);
   if(enemyPercent === 1){ enemy = !PETERFUCKINGGRIFFIN; } else { enemy = false; }
   curHomer = rndInt(1,4);
   while(curEnemy === curHomer){ curEnemy = rndInt(1,4); }
@@ -263,6 +376,10 @@ function checkHit(x, y){
     const h = img.homer ? img.homer.height : 64;
     if(x>ex && x<ex+w && y>ey && y<ey+h){
       doGameOver(); diedBy = PETERFUCKINGGRIFFIN ? 'Ernie the Giant Chicken' : 'Frank Grimes';
+      if (!PETERFUCKINGGRIFFIN && snd.frankGrimes) {
+          snd.frankGrimes.currentTime = 0;
+          snd.frankGrimes.play().catch(()=>{});
+      }
       return false;
     }
   }
@@ -292,6 +409,8 @@ canvas.addEventListener('mousedown', ev => {
         pickNewHomerPos(curHomer); 
         health -= 1;
         if(health <= 0) doGameOver(); diedBy = 'health';
+        snd.grrr.currentTime = 0;
+        snd.grrr.play().catch(()=>{});
     }
 });
 
@@ -302,9 +421,25 @@ window.addEventListener('keydown', (e) => {
 function update(dt){
   Timer.update(dt);
   updateParticles(dt);
+  gameTimerDecrementAmount = Math.min((1000+(score)), 20000);
+  TimerDecrementer -= gameTimerDecrementAmount * dt;
+  peterTimerDecrementer -= 1000 * dt
+
+  if (TimerDecrementer <= 0) {
+    TimerDecrementer = 1000
+    gameTimer -= 1;
+    timerJump[0] = -15;
+    Timer.tween(0.2, timerJump, {0: 0}, "out-back");
+  }
+
+  if (peterTimerDecrementer <= 0) {
+    peterTimerDecrementer = 1000;
+    peterTimer -= 1;
+    timerJump[1] = -15;
+    Timer.tween(0.2, timerJump, {1: 0}, "out-back");
+  }
 
   if(!title && !gameoverScreen){
-    timerTime -= dt * 1000;
     comboDisplayValues[2] = rndInt(comboDisplayValues[2]-shakeIntensity, comboDisplayValues[2]+shakeIntensity);
     comboDisplayValues[3] = rndInt(comboDisplayValues[3]-shakeIntensity, comboDisplayValues[3]+shakeIntensity);
 
@@ -313,7 +448,11 @@ function update(dt){
     if(keysDownOnce['f']) checkInput(2);
     if(keysDownOnce['d']) checkInput(1);
 
-    if(timerTime <= 0){ diedBy = 'Timer'; doGameOver(); }
+    if (snd.music.ended) {
+      playRandomMusic();
+    }
+
+    if(gameTimer <= 0){ diedBy = 'Timer'; doGameOver(); }
   }
 }
 
@@ -366,7 +505,22 @@ function draw(){
     }
 
     ctx.globalAlpha = peterBonusPos[1];
-    if(img.peterBonus) ctx.drawImage(img.peterBonus, peterBonusPos[0], 100);
+    if(img.peterBonus)  {
+      const cx = peterBonusPos[0] + img.peterBonus.width / 2;
+      const cy = peterBonusPos[1] + img.peterBonus.height / 2;
+
+      ctx.translate(cx, cy);
+      ctx.rotate(peterBonusPos[2] * Math.PI / 180);
+      ctx.scale(0.7, 0.7);
+      ctx.translate(-cx, -cy);
+
+      ctx.drawImage(img.peterBonus, peterBonusPos[0], peterBonusPos[1]);
+
+      ctx.translate(cx, cy);
+      ctx.rotate(-peterBonusPos[2] * Math.PI / 180);
+      ctx.scale(1/0.7, 1/0.7);
+      ctx.translate(-cx, -cy);
+    }
     ctx.globalAlpha = 1;
 
     drawParticles();
@@ -375,7 +529,9 @@ function draw(){
     ctx.font = '50px FATASSOU, sans-serif';
     ctx.fillText(`Score: ${Math.floor(scoreDisplay[0])}`, 10, 120);
     ctx.textAlign = 'right';
-    ctx.fillText(`${Math.floor(timerTime/1000)}`, canvas.width-10, 120);
+    ctx.fillText(`${Math.floor(gameTimer)}`, canvas.width/2, 120 + timerJump[0]);
+
+    if(peterTimer > 0) ctx.fillText(`${Math.floor(peterTimer)}`, canvas.width/2 + 300, 120 + timerJump[1]);
     ctx.textAlign = 'left';
   }
 
@@ -398,7 +554,7 @@ function draw(){
     ctx.save();
     ctx.translate(canvas.width/2 - 110, 500);
     ctx.scale(1.2,1.2);
-    drawCentered('Press Space', 0);
+    drawCentered('Press [SPACE] or press screen', -600);
     ctx.restore();
   }
 
@@ -408,9 +564,7 @@ function draw(){
     ctx.fillStyle = '#fff';
     ctx.font = '40px SEGOEPRB, sans-serif';
     ctx.save();
-    ctx.translate(canvas.width/2 - 780, 500);
-    ctx.scale(1.2,1.2);
-    drawCentered('Press screen or press [SPACE]', 0);
+    ctx.drawImage(img.tutorial, 0, 0);
     ctx.restore();
   }
 
