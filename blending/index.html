@@ -144,7 +144,7 @@ let title = true;
 let highScore = Number(localStorage.getItem('hh_highScore') || 0);
 let diedBy = 'error- diedBy was never set';
 
-let peterBonusPos = [-1000, 1, -1];
+let peterBonusPos = [-1000, 130, -35];
 let score = 0;
 let combo = 0;
 let highestCombo = 0;
@@ -164,12 +164,13 @@ let peterTimer = 0;
 let peterTimerDecrementer = 0;
 let timerJump = [0, 0]; // gameTimer, peterTimer
 let scoreMultiplier = 1;
+let scoreSizeAndPosShitIdk = [0, 0]
 
 const comboDisplayValues = [1, 1, 50, 100,
   'rgba(0,0,0,1)', 'rgba(255,165,0,1)', 'rgba(0,0,0,0.5)', 'rgba(255,165,0,0.5)'];
 let comboColor = comboDisplayValues[4];
 let comboColorTransparent = comboDisplayValues[6];
-let scoreDisplay = [0];
+let scoreDisplay = [0, 0]; // score, accuracy
 
 const homiePositionsTable = [
   [180,163], [392,165], [650,150], [954,118]
@@ -264,11 +265,12 @@ function playRandomMusic() {
 }
 
 function initGame(){
-  peterBonusPos[0] = -1000; peterBonusPos[1] = 1; peterBonusPos[2] = -15;
+  peterBonusPos[0] = -img.peterBonus.width*1.2; peterBonusPos[1] = 130; peterBonusPos[2] = -35;
   score = 0; combo = 0; highestCombo = 0; comboSizeOffset = 0.8; shakeIntensity = 0; comboTilt = 0;
   totalHits = 0; totalClicks = 0; diedBy = 'error- diedBy was never set';
   comboColor = comboDisplayValues[4]; comboColorTransparent = comboDisplayValues[6];
   scoreDisplay[0] = 0; particles.length = 0;
+  scoreDisplay[1] = 0;
   curHomer = rndInt(1,4); curEnemy = 1; enemy = false;
   gameoverScreen = false; title = false;
   gameTimer = 10
@@ -291,14 +293,14 @@ function doPeterBonusAlert(){
   try {
     if(snd.lucky){ snd.lucky.currentTime = 0; snd.lucky.play().catch(()=>{}); }
   } catch{}
-  peterBonusPos[0] = -img.peterBonus.width; peterBonusPos[1] = 130; peterBonusPos[2] = -15;
+  peterBonusPos[0] = -img.peterBonus.width; peterBonusPos[1] = 130; peterBonusPos[2] = -35;
   if(window._luckyTween) Timer.cancel(window._luckyTween);
   if(window._luckyTweenRotate) Timer.cancel(window._luckyTweenRotate);
-  window._luckyTweenRotate = Timer.tween(1, peterBonusPos, { 2: 15 }, 'out-back');
-  window._luckyTween = Timer.tween(0.8, peterBonusPos, { 0: canvas.width / 2 - img.peterBonus.width+100 }, 'out-quad', () => {
+  window._luckyTweenRotate = Timer.tween(1, peterBonusPos, { 2: 0 }, 'out-back');
+  window._luckyTween = Timer.tween(0.8, peterBonusPos, { 0: canvas.width / 2 - img.peterBonus.width/2 }, 'out-quad', () => {
     Timer.tween(1.3, peterBonusPos, { 2: 0 }, 'out-back');
     Timer.after(1.65, () => {
-      Timer.tween(0.2, peterBonusPos, { 1: -300, 2: 25 }, 'in-expo');
+      Timer.tween(0.4, peterBonusPos, { 1: -310, 2: 25 }, 'in-expo');
     });
   });
 }
@@ -325,6 +327,10 @@ function incrementCombo(){
         clone.play().catch(()=>{});
     }
   }
+  // -25 - 25
+  scoreSizeAndPosShitIdk[0] = (Math.random() * 50 - 25)
+  scoreSizeAndPosShitIdk[1] = 1.3
+  window._scoreSizeAndPosShitTween = Timer.tween(0.3, scoreSizeAndPosShitIdk, { 0: 0, 1: 1 }, 'out-quad');
   let sizeModifier = 0;
   doScoreDisplay();
 }
@@ -332,7 +338,7 @@ function incrementCombo(){
 let scoreDisplayTween = null;
 function doScoreDisplay(){
   if(scoreDisplayTween) Timer.cancel(scoreDisplayTween);
-  scoreDisplayTween = Timer.tween(1, scoreDisplay, { 0: score }, 'out-quad');
+  scoreDisplayTween = Timer.tween(1, scoreDisplay, { 0: score, 1: totalClicks>0 ? Math.floor((totalHits/totalClicks)*100) : 0 }, 'out-quad');
 }
 
 function checkInput(which){
@@ -341,13 +347,7 @@ function checkInput(which){
     incrementCombo();
     pickNewHomerPos(curHomer);
   } else if(which === curEnemy){
-    /* doGameOver(); diedBy = PETERFUCKINGGRIFFIN ? 'Ernie the Giant Chicken' : 'Frank Grimes';
-    if (!PETERFUCKINGGRIFFIN && snd.frankGrimes) {
-        snd.frankGrimes.currentTime = 0;
-        snd.frankGrimes.play().catch(()=>{});
-    } */
     if (!PETERFUCKINGGRIFFIN) {
-      // frank grimes kill
       doGameOver(); diedBy = 'Frank Grimes';
       if (snd.frankGrimes) {
           snd.frankGrimes.currentTime = 0;
@@ -482,6 +482,10 @@ function update(dt){
   }
 }
 
+let shakeBooleanIDK = false;
+let otherShakeBooleanIDK = false;
+let shakeX = 0, shakeY = 0;
+
 function draw(){
   ctx.save();
   ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -507,32 +511,9 @@ function draw(){
       if(img.peter)   ctx.drawImage(img.peter,   homiePositionsTable[curHomer-1][0], homiePositionsTable[curHomer-1][1]);
     }
 
-    if(combo >= 5){
-      ctx.save();
-      ctx.translate(0,0);
-      ctx.rotate(comboTilt);
-      ctx.scale(comboSizeOffset, comboSizeOffset);
-
-      ctx.font = `100px FATASSOU, sans-serif`;
-      ctx.fillStyle = comboColor;
-      ctx.fillText(String(combo), comboDisplayValues[2], comboDisplayValues[3]);
-
-      ctx.font = `100px FATASSFI, sans-serif`;
-      ctx.fillStyle = comboColorTransparent;
-      const lineScale = comboDisplayValues[1];
-      const fillScale = comboDisplayValues[0];
-      ctx.save();
-      ctx.translate(comboDisplayValues[2], comboDisplayValues[3]);
-      ctx.scale(fillScale, fillScale);
-      ctx.fillText(String(combo), 0, 0);
-      ctx.restore();
-
-      ctx.restore();
-    }
-
     ctx.globalAlpha = peterBonusPos[1];
     if(img.peterBonus)  {
-      const cx = peterBonusPos[0] + img.peterBonus.width / 2;
+      const cx = peterBonusPos[0] + 15;
       const cy = peterBonusPos[1] + img.peterBonus.height / 2;
 
       ctx.translate(cx, cy);
@@ -551,14 +532,42 @@ function draw(){
 
     drawParticles();
 
+    shakeBooleanIDK = !shakeBooleanIDK;
+    otherShakeBooleanIDK = !otherShakeBooleanIDK;
+    if (otherShakeBooleanIDK)
+      if (shakeBooleanIDK) {
+        // 0 -> score/1000 random
+        shakeX = (Math.random() * 2 - 1) * (score / 1000);
+        shakeY = (Math.random() * 2 - 1) * (score / 1000);
+      } else {
+        shakeX = -shakeX;
+        shakeY = -shakeY;
+      }
+
     ctx.fillStyle = '#000';
-    ctx.font = '50px FATASSOU, sans-serif';
-    ctx.fillText(`Score: ${Math.floor(scoreDisplay[0])}`, 10, 120);
+    ctx.font = '75px FATASSOU, sans-serif';
+    // actually gotta rotate it -5 deg
+    ctx.translate(100 + shakeX + scoreSizeAndPosShitIdk[0], 150 + shakeY + scoreSizeAndPosShitIdk[0]);
+    ctx.rotate(-5 * Math.PI / 180);
+    ctx.scale(scoreSizeAndPosShitIdk[1], scoreSizeAndPosShitIdk[1]);
+    ctx.translate(-100 - shakeX - scoreSizeAndPosShitIdk[0], -100 - shakeY - scoreSizeAndPosShitIdk[0]);
+    ctx.fillText(`${Math.floor(scoreDisplay[0])}`, 100 + shakeX + scoreSizeAndPosShitIdk[0], 100 + shakeY + scoreSizeAndPosShitIdk[0]);
+    ctx.translate(100 + shakeX + scoreSizeAndPosShitIdk[0], 100 + shakeY + scoreSizeAndPosShitIdk[0]);
+    ctx.rotate(5 * Math.PI / 180);
+    // reset scale
+    ctx.scale(1/scoreSizeAndPosShitIdk[1], 1/scoreSizeAndPosShitIdk[1]);
+    ctx.translate(-100 - shakeX - scoreSizeAndPosShitIdk[0], -100 - shakeY - scoreSizeAndPosShitIdk[0]);
     ctx.textAlign = 'right';
+    ctx.font = '50px FATASSOU, sans-serif';
     ctx.fillText(`${Math.floor(gameTimer)}`, canvas.width/2, 120 + timerJump[0]);
 
     if(peterTimer > 0) ctx.fillText(`${Math.floor(peterTimer)}`, canvas.width/2 + 300, 120 + timerJump[1]);
     ctx.textAlign = 'left';
+
+    ctx.font = '50px FATASSOU, sans-serif';
+    // display acc to TWO decimal places
+    ctx.fillText(`${Math.ceil(scoreDisplay[1])}%`, 100, 600);
+    
   }
 
   if(gameoverScreen){
