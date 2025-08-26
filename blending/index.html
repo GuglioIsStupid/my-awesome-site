@@ -445,41 +445,28 @@ window.addEventListener('keydown', (e) => {
 });
 
 let cheatBuffer = '';
-let activeCheats = {};
-
-// Define all cheats here
-const cheats = {
-  penis: () => {
-    if (!activeCheats.penis) {
-      gameTimer = 9999;
-      health = 9999;
-      activeCheats.penis = true;
-      console.log('Cheat activated: infinite time & health!');
-    } else {
-      gameTimer = 10;
-      health = 3;
-      activeCheats.penis = false;
-      console.log('Cheat deactivated: back to normal.');
-    }
-  }
-};
-
+let cheatActivated = false;
 window.addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase();
-  if (key.length === 1) {
+  if(key.length === 1) { // Only letters/characters
     cheatBuffer += key;
-
-    for (const code in cheats) {
-      if (cheatBuffer.endsWith(code)) {
-        cheats[code]();
-        cheatBuffer = '';
-        break;
-      }
+    if(cheatBuffer.length > 5) cheatBuffer = cheatBuffer.slice(-5);
+    if(cheatBuffer === 'penis') {
+        if (!cheatActivated) {
+          gameTimer = 9999;
+          health = 9999;
+          cheatActivated = true;
+          console.log('Cheat activated: infinite time & health!');
+        } else {
+          gameTimer = 10;
+          health = 3;
+          cheatActivated = false;
+          console.log('Cheat deactivated: back to normal.');
+        }
     }
-
-    if (cheatBuffer.length > 20) cheatBuffer = cheatBuffer.slice(-20);
   }
 });
+
 
 function update(dt){
   Timer.update(dt);
