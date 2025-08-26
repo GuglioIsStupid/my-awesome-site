@@ -13,38 +13,17 @@
     @font-face { font-family: 'FATASSOU'; src: url('fonts/FATASSOU.TTF') format('truetype'); font-display: swap; }
     @font-face { font-family: 'SEGOEPRB'; src: url('fonts/SEGOEPRB.TTF') format('truetype'); font-display: swap; }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/shaka-player@4.14.9/dist/shaka-player.compiled.js"></script>
 </head>
-<style>
-  canvas, #video-container video {
-  width: 100%;
-  height: 100%;
-  object-fit: contain; /* keeps aspect ratio, letterboxes */
-  display: block;
-}
-#video-container {
-  display: none;
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: black;
-  overflow: hidden;
-}
-</style>
 <body>
   <div id="wrap">
-    <canvas id="game" width="1280" height="720" style="display:block;"></canvas>
+    <canvas id="game" width="1280" height="720"></canvas>
   </div>
-  <div id="video-container" style="display:none; position:absolute; top:0; left:0; width:100vw; height:100vh; background:black;"></div>
 
   <script>
 
 const rndInt = (min, max) => (min + Math.floor(Math.random() * (max - min + 1)));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp  = (a, b, t) => a + (b - a) * t;
-let isMovie = false;
 
 class TweenManager {
   constructor(){ this.tweens = new Set(); }
@@ -467,6 +446,7 @@ window.addEventListener('keydown', (e) => {
 
 let cheatBuffer = '';
 let activeCheats = {};
+
 // Define all cheats here
 const cheats = {
   penis: () => {
@@ -481,18 +461,6 @@ const cheats = {
       activeCheats.penis = false;
       console.log('Cheat deactivated: back to normal.');
     }
-  },
-  minecraft: () => {
-    // STOP ALL SOUNDS!
-    for (const sound in snd) {
-      if (snd[sound].pause) snd[sound].pause();
-    }
-    isMovie = !isMovie;
-    const canvas = document.getElementById('game');
-    const movieContainer = document.getElementById('video-container');
-    movieContainer.style.display = isMovie ? 'block' : 'none';
-    canvas.style.display = isMovie ? 'none' : 'block';
-    console.log('Movie mode:', isMovie);
   }
 };
 
@@ -699,26 +667,6 @@ function collectKeyEdges(){
     }
   }
 }
-
-document.addEventListener('DOMContentLoaded', async () => {
-  
-  await shaka.polyfill.installAll();
-  if (shaka.Player.isBrowserSupported()) {
-    const videoEl = document.createElement('video');
-    videoEl.controls = true;
-    videoEl.autoplay = true;
-    document.getElementById('video-container').appendChild(videoEl);
-
-    const player = new shaka.Player(videoEl);
-    player.addEventListener('error', (event) => console.error('Error code', event.detail.code, 'object', event.detail));
-    try {
-      await player.load('https://cdn.canadaploos.ca/cdn/aminecraftmovie/playlist.m3u8');
-      console.log('HLS video loaded successfully!');
-    } catch (e) {
-      console.error('Failed to load HLS stream:', e);
-    }
-  }
-});
 
 function loop(now){
   const dt = Math.min(0.033, (now - previousPerfTime)/1000);
